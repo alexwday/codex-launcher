@@ -1,4 +1,4 @@
-"""Configure and optionally launch Codex Desktop through the local proxy."""
+"""Configure and optionally launch Codex CLI through the local proxy."""
 
 from __future__ import annotations
 
@@ -11,11 +11,11 @@ from .models import SelectedModelStore, load_model_catalog
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Configure and optionally launch Codex Desktop via local proxy")
+    parser = argparse.ArgumentParser(description="Configure and optionally launch Codex CLI via local proxy")
     parser.add_argument("--profile", default=None, help="Config profile override (local/work)")
     parser.add_argument("--model", default=None, help="Codex-facing model id to select from models.json")
-    parser.add_argument("--launch", action="store_true", help="Launch Codex Desktop after configuring")
-    parser.add_argument("--status", action="store_true", help="Print Codex install/status information")
+    parser.add_argument("--launch", action="store_true", help="Open Codex CLI in a new terminal after configuring")
+    parser.add_argument("--status", action="store_true", help="Print Codex CLI install/status information")
     args = parser.parse_args()
 
     settings = load_settings(args.profile)

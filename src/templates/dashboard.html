@@ -132,14 +132,16 @@
         </div>
       </section>
       <section>
-        <h2>Codex Desktop</h2>
+        <h2>Codex CLI</h2>
         <div class="row"><span class="label">Installed</span><span id="codexInstalled" class="status"></span></div>
         <div class="row"><span class="label">Running</span><span id="codexRunning" class="status"></span></div>
         <div class="row"><span class="label">Config</span><span id="codexConfig" class="value"></span></div>
+        <div class="row"><span class="label">CLI</span><span id="codexCli" class="value"></span></div>
+        <div class="row"><span class="label">Workspace</span><span id="codexWorkspace" class="value"></span></div>
         <div id="codexMessage" class="muted"></div>
         <div class="actions">
           <button id="configureButton">Configure</button>
-          <button class="primary" id="launchButton">Launch Codex</button>
+          <button class="primary" id="launchButton">Launch CLI</button>
         </div>
       </section>
     </div>
@@ -189,6 +191,8 @@
       $("localUrl").textContent = config.localBaseUrl;
       $("upstreamUrl").textContent = config.upstreamBaseUrl;
       $("codexConfig").textContent = config.codex.configPath;
+      $("codexCli").textContent = config.codex.cliPath;
+      $("codexWorkspace").textContent = config.codex.workspacePath;
       badge($("oauthStatus"), config.oauthEnabled, config.oauthEnabled ? "enabled" : "disabled");
       badge($("sslStatus"), Boolean(config.sslProvider), config.sslProvider || "system");
     }
@@ -214,6 +218,8 @@
       const status = await fetchJson("/api/codex/status");
       badge($("codexInstalled"), status.installed, status.installed ? "yes" : "missing");
       badge($("codexRunning"), status.running, status.running ? "running" : "stopped");
+      $("codexCli").textContent = status.resolved_cli_path || status.cli_path || "";
+      $("codexWorkspace").textContent = status.workspace_path || "";
       $("codexMessage").textContent = status.message || (status.installed ? "" : `Setup: ${status.setup_url}`);
     }
 

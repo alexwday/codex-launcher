@@ -54,6 +54,11 @@ class CodexConfig:
     model: str
     env_key: str
     config_path: Path
+    cli_path: str
+    workspace_path: Path
+    cli_source_path: Path
+    cli_repo_url: str
+    cli_release_base_url: str
     app_path: Path
     desktop_repo_url: str
 
@@ -238,6 +243,30 @@ def load_settings(profile_override: Optional[str] = None) -> Settings:
         _env_for_profile(profile, "CODEX_CONFIG_PATH", "~/.codex/config.toml")
         or "~/.codex/config.toml"
     )
+    codex_cli_path = (
+        _env_for_profile(profile, "CODEX_CLI_PATH", "codex")
+        or "codex"
+    ).strip()
+    codex_workspace_path = _expand_path(
+        _env_for_profile(profile, "CODEX_WORKSPACE_PATH", "~")
+        or "~"
+    )
+    codex_cli_source_path = _expand_path(
+        _env_for_profile(profile, "CODEX_CLI_SOURCE_PATH", "~/Projects/openai-codex")
+        or "~/Projects/openai-codex"
+    )
+    codex_cli_repo_url = (
+        _env_for_profile(profile, "CODEX_CLI_REPO_URL", "https://github.com/openai/codex.git")
+        or "https://github.com/openai/codex.git"
+    ).strip()
+    codex_cli_release_base_url = (
+        _env_for_profile(
+            profile,
+            "CODEX_CLI_RELEASE_BASE_URL",
+            "https://github.com/openai/codex/releases/latest/download",
+        )
+        or "https://github.com/openai/codex/releases/latest/download"
+    ).strip()
     codex_app_path = _expand_path(
         _env_for_profile(profile, "CODEX_APP_PATH", "/Applications/Codex.app")
         or "/Applications/Codex.app"
@@ -279,6 +308,11 @@ def load_settings(profile_override: Optional[str] = None) -> Settings:
             model=codex_model,
             env_key=codex_env_key,
             config_path=codex_config_path,
+            cli_path=codex_cli_path,
+            workspace_path=codex_workspace_path,
+            cli_source_path=codex_cli_source_path,
+            cli_repo_url=codex_cli_repo_url,
+            cli_release_base_url=codex_cli_release_base_url,
             app_path=codex_app_path,
             desktop_repo_url=codex_desktop_repo_url,
         ),

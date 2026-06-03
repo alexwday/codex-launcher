@@ -1,6 +1,6 @@
 # codex-launcher
 
-Local proxy wrapper for Codex Desktop in restricted enterprise networks.
+Local proxy wrapper for Codex CLI in restricted enterprise networks.
 
 ## Goal
 
@@ -13,7 +13,8 @@ Route Codex traffic through a local proxy that:
 - forces Responses API `store=false`,
 - injects token defaults (`32768`) when callers omit them,
 - monitors calls from a local dashboard,
-- configures and launches Codex Desktop with the proxy provider.
+- configures Codex CLI with the proxy provider,
+- opens Codex CLI in a new terminal with the proxy API key in process env.
 
 ## Current scope
 
@@ -27,7 +28,8 @@ This repo contains:
 - optional `/v1/chat/completions` forwarding
 - in-memory call logging
 - dashboard HTML served at `/`
-- Codex Desktop config and launch helpers
+- Codex CLI config and launch helpers
+- GitHub-only Codex CLI setup scripts
 
 ## Quick Start
 
@@ -49,24 +51,54 @@ cp .env.example .env
 
 4. Edit `models.json` under `profiles.work.models` with Codex-facing model names and upstream model names. The dashboard selects `WORK_CODEX_MODEL` on startup; if that id is missing from `models.json`, the launcher adds a fallback from `.env` instead of silently selecting a local model.
 
-5. Start proxy/dashboard:
+5. Install Codex CLI. If only GitHub is reachable, prefer the release script:
+
+```bash
+scripts/install_codex_cli_from_github_release.sh
+```
+
+If release assets are blocked but source cloning works and Rust dependencies are available:
+
+```bash
+scripts/setup_codex_cli_from_source.sh
+```
+
+Make sure `CODEX_CLI_PATH` in `.env` points to the installed binary. If the script installed to `~/.local/bin/codex`, either add `~/.local/bin` to `PATH` or set:
+
+```text
+CODEX_CLI_PATH=~/.local/bin/codex
+```
+
+6. Optional: set the folder where CLI sessions should start:
+
+```text
+CODEX_WORKSPACE_PATH=/Users/you/Projects/some-repo
+```
+
+7. Start proxy/dashboard:
 
 ```bash
 python -m src.main
 ```
 
-6. Open the dashboard:
+8. Open the dashboard:
 
 ```text
 http://127.0.0.1:8765
 ```
 
-7. Select a model, configure Codex, and launch Codex Desktop from the dashboard.
+9. Select a model, configure Codex, and launch Codex CLI from the dashboard.
 
 You can still print Codex provider wiring instructions:
 
 ```bash
-python -m src.launch_codex --profile local
+python -m src.launch_codex --profile work
+```
+
+You can also configure and launch from the terminal:
+
+```bash
+python -m src.launch_codex --profile work --launch
 ```
 
 ## Notes
@@ -75,3 +107,5 @@ python -m src.launch_codex --profile local
 - Keep `PROXY_STATIC_API_KEY` local-only; upstream auth should use OAuth2 tokens.
 - Secrets stay in `.env`; `~/.codex/config.toml` only stores the proxy provider name, base URL, wire API, and environment variable name.
 - The proxy sets `store=false` on `/v1/responses` before forwarding upstream.
+- The dashboard launch button opens a macOS Terminal window because Codex CLI is an interactive TUI.
+- The proxy API key is injected into the launched CLI process environment and is not written to `~/.codex/config.toml`.

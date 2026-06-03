@@ -124,8 +124,11 @@ def create_app(settings: Optional[Settings] = None) -> FastAPI:
                 "model": selected.id,
                 "envKey": settings.codex.env_key,
                 "configPath": str(settings.codex.config_path),
-                "appPath": str(settings.codex.app_path),
-                "desktopRepoUrl": settings.codex.desktop_repo_url,
+                "cliPath": settings.codex.cli_path,
+                "workspacePath": str(settings.codex.workspace_path),
+                "sourcePath": str(settings.codex.cli_source_path),
+                "repoUrl": settings.codex.cli_repo_url,
+                "releaseBaseUrl": settings.codex.cli_release_base_url,
             },
         }
 
