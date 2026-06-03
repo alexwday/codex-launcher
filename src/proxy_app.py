@@ -51,6 +51,7 @@ def create_app(settings: Optional[Settings] = None) -> FastAPI:
     ssl_provider = configure_rbc_security_certs()
     models = load_model_catalog(
         resolved_settings.model_config_path,
+        profile=resolved_settings.profile,
         default_model_id=resolved_settings.codex.model,
         default_upstream_model=resolved_settings.model_mapping.get(
             resolved_settings.codex.model,

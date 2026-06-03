@@ -45,21 +45,23 @@ pip install -r requirements.txt
 cp .env.example .env
 ```
 
-3. Edit `models.json` with Codex-facing model names and upstream model names.
+3. Set `CODEX_PROXY_PROFILE=work` in `.env` and fill the `WORK_*` values.
 
-4. Start proxy/dashboard:
+4. Edit `models.json` under `profiles.work.models` with Codex-facing model names and upstream model names. The dashboard selects `WORK_CODEX_MODEL` on startup; if that id is missing from `models.json`, the launcher adds a fallback from `.env` instead of silently selecting a local model.
+
+5. Start proxy/dashboard:
 
 ```bash
 python -m src.main
 ```
 
-5. Open the dashboard:
+6. Open the dashboard:
 
 ```text
 http://127.0.0.1:8765
 ```
 
-6. Select a model, configure Codex, and launch Codex Desktop from the dashboard.
+7. Select a model, configure Codex, and launch Codex Desktop from the dashboard.
 
 You can still print Codex provider wiring instructions:
 

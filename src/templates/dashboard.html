@@ -117,6 +117,7 @@
     <div class="stack">
       <section>
         <h2>Proxy</h2>
+        <div class="row"><span class="label">Profile</span><span id="profileName" class="value"></span></div>
         <div class="row"><span class="label">Local URL</span><span id="localUrl" class="value"></span></div>
         <div class="row"><span class="label">Upstream</span><span id="upstreamUrl" class="value"></span></div>
         <div class="row"><span class="label">OAuth</span><span id="oauthStatus" class="status"></span></div>
@@ -184,6 +185,7 @@
       const health = await fetchJson("/health");
       badge($("healthBadge"), health.status === "ok", health.status);
       const config = await fetchJson("/api/config");
+      $("profileName").textContent = config.profile;
       $("localUrl").textContent = config.localBaseUrl;
       $("upstreamUrl").textContent = config.upstreamBaseUrl;
       $("codexConfig").textContent = config.codex.configPath;

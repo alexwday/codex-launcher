@@ -1,11 +1,26 @@
 {
-  "models": [
-    {
-      "id": "gpt-4o-2024-11-20-canadaeast",
-      "display_name": "GPT-4o Canada East",
-      "upstream_model": "gpt-4o-2024-11-20-canadaeast",
-      "max_output_tokens": 32768,
-      "description": "Default enterprise Responses API model."
+  "profiles": {
+    "local": {
+      "models": [
+        {
+          "id": "local-dev-model",
+          "display_name": "Local Dev Model",
+          "upstream_model": "gpt-4o-mini",
+          "max_output_tokens": 8192,
+          "description": "Local development placeholder for direct OpenAI testing."
+        }
+      ]
+    },
+    "work": {
+      "models": [
+        {
+          "id": "gpt-4o-2024-11-20-canadaeast",
+          "display_name": "GPT-4o Canada East",
+          "upstream_model": "gpt-4o-2024-11-20-canadaeast",
+          "max_output_tokens": 32768,
+          "description": "Default enterprise Responses API model."
+        }
+      ]
     }
-  ]
+  }
 }

@@ -21,6 +21,7 @@ def main() -> None:
     settings = load_settings(args.profile)
     models = load_model_catalog(
         settings.model_config_path,
+        profile=settings.profile,
         default_model_id=settings.codex.model,
         default_upstream_model=settings.model_mapping.get(settings.codex.model, settings.codex.model),
         default_max_output_tokens=settings.token_defaults.responses_max_output_tokens,

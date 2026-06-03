@@ -149,7 +149,7 @@ def _expand_path(raw_value: str, *, base_dir: Path = _PROJECT_ROOT) -> Path:
 def load_settings(profile_override: Optional[str] = None) -> Settings:
     _load_env_file(_ENV_FILE)
 
-    profile = (profile_override or os.getenv("CODEX_PROXY_PROFILE", "local")).strip().lower()
+    profile = (profile_override or os.getenv("CODEX_PROXY_PROFILE", "work")).strip().lower()
     if not profile:
         raise ConfigError("CODEX_PROXY_PROFILE cannot be empty")
 

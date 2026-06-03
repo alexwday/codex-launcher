@@ -31,39 +31,45 @@ class ModelConfig:
 def load_model_catalog(
     path: Path,
     *,
+    profile: Optional[str] = None,
     default_model_id: str,
     default_upstream_model: str,
     default_max_output_tokens: int,
 ) -> list[ModelConfig]:
     """Load non-secret model settings from JSON, with a safe fallback model."""
+    default_model = ModelConfig(
+        id=default_model_id,
+        display_name=default_model_id,
+        upstream_model=default_upstream_model,
+        max_output_tokens=default_max_output_tokens,
+        description="Fallback from CODEX_MODEL settings.",
+    )
     if not path.exists():
-        return [
-            ModelConfig(
-                id=default_model_id,
-                display_name=default_model_id,
-                upstream_model=default_upstream_model,
-                max_output_tokens=default_max_output_tokens,
-            )
-        ]
+        return [default_model]
 
     try:
         raw = json.loads(path.read_text(encoding="utf-8"))
     except json.JSONDecodeError as exc:
         raise ModelConfigError(f"Invalid model config JSON: {exc}") from exc
 
-    items = raw.get("models") if isinstance(raw, dict) else raw
+    items = _select_model_items(raw, profile=profile)
     if not isinstance(items, list):
-        raise ModelConfigError("Model config must be a list or an object with a models list")
+        raise ModelConfigError(
+            "Model config must be a list, an object with a models list, "
+            "or an object with profiles.<profile>.models"
+        )
 
     models = [_parse_model_config(item) for item in items]
-    if not models:
-        raise ModelConfigError("Model config must include at least one model")
-
     seen: set[str] = set()
     for model in models:
         if model.id in seen:
             raise ModelConfigError(f"Duplicate model id: {model.id}")
         seen.add(model.id)
+
+    if default_model_id not in seen:
+        models.insert(0, default_model)
+    if not models:
+        raise ModelConfigError("Model config must include at least one model")
 
     return models
 
@@ -76,7 +82,9 @@ class SelectedModelStore:
             raise ModelConfigError("At least one model is required")
         self._models = {model.id: model for model in models}
         self._ordered_ids = [model.id for model in models]
-        self._selected_id = default_model_id if default_model_id in self._models else self._ordered_ids[0]
+        if default_model_id not in self._models:
+            raise ModelConfigError(f"Default model id is not configured: {default_model_id}")
+        self._selected_id = default_model_id
         self._lock = threading.Lock()
 
     def list_models(self) -> list[dict[str, Any]]:
@@ -138,3 +146,56 @@ def _parse_model_config(item: Any) -> ModelConfig:
         context_window=context_window,
         reasoning_effort=reasoning_effort,
     )
+
+
+def _select_model_items(raw: Any, *, profile: Optional[str]) -> Any:
+    if isinstance(raw, list):
+        return _filter_models_for_profile(raw, profile=profile)
+    if not isinstance(raw, dict):
+        return raw
+
+    profiles = raw.get("profiles")
+    normalized_profile = (profile or "").strip().lower()
+    if normalized_profile and isinstance(profiles, dict):
+        profile_config = profiles.get(normalized_profile)
+        if profile_config is None:
+            return []
+        if isinstance(profile_config, dict):
+            return profile_config.get("models", [])
+        return profile_config
+
+    if "models" in raw:
+        return _filter_models_for_profile(raw.get("models"), profile=profile)
+
+    return raw
+
+
+def _filter_models_for_profile(items: Any, *, profile: Optional[str]) -> Any:
+    if not isinstance(items, list) or not profile:
+        return items
+
+    normalized_profile = profile.strip().lower()
+    filtered = []
+    for item in items:
+        if not isinstance(item, dict):
+            filtered.append(item)
+            continue
+        allowed_profiles = _allowed_profiles(item)
+        if not allowed_profiles or normalized_profile in allowed_profiles:
+            filtered.append(item)
+
+    return filtered
+
+
+def _allowed_profiles(item: dict[str, Any]) -> set[str]:
+    raw_profiles = item.get("profiles", item.get("profile"))
+    if raw_profiles is None:
+        return set()
+    if isinstance(raw_profiles, str):
+        values = [value.strip() for value in raw_profiles.split(",")]
+    elif isinstance(raw_profiles, list):
+        values = [str(value).strip() for value in raw_profiles]
+    else:
+        raise ModelConfigError("Model profile metadata must be a string or list")
+
+    return {value.lower() for value in values if value}
