@@ -68,6 +68,40 @@ class CodexManagerTests(unittest.TestCase):
         self.assertNotIn("proxy-secret", text)
         self.assertNotIn("upstream-secret", text)
 
+    def test_configure_codex_migrates_deprecated_chat_wire_api(self) -> None:
+        with tempfile.TemporaryDirectory() as raw_temp_dir:
+            temp_dir = Path(raw_temp_dir)
+            settings = make_settings(temp_dir)
+            settings.codex.config_path.write_text(
+                "\n".join(
+                    [
+                        'model_provider = "old-provider"',
+                        'model = "old-model"',
+                        "",
+                        "[model_providers.old-provider]",
+                        'name = "Old Provider"',
+                        'base_url = "https://old.example/v1"',
+                        'wire_api = "chat"',
+                        'env_key = "OLD_API_KEY"',
+                        "",
+                    ]
+                ),
+                encoding="utf-8",
+            )
+            model = ModelConfig(
+                id="codex-facing",
+                display_name="Codex Facing",
+                upstream_model="corp-model",
+                max_output_tokens=32768,
+            )
+
+            result = configure_codex(settings, model)
+            text = settings.codex.config_path.read_text(encoding="utf-8")
+
+        self.assertIn("old-provider", result["migratedProviders"])
+        self.assertNotIn('wire_api = "chat"', text)
+        self.assertIn('wire_api = "responses"', text)
+
     def test_codex_status_missing_cli(self) -> None:
         with tempfile.TemporaryDirectory() as raw_temp_dir:
             settings = make_settings(Path(raw_temp_dir))

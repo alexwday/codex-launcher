@@ -117,6 +117,8 @@ def configure_codex(settings: Settings, selected_model: ModelConfig) -> dict[str
         providers = tomlkit.table()
         doc["model_providers"] = providers
 
+    migrated_providers = _migrate_deprecated_wire_api(providers)
+
     provider = providers.get(provider_id)
     if provider is None:
         provider = tomlkit.table()
@@ -136,6 +138,7 @@ def configure_codex(settings: Settings, selected_model: ModelConfig) -> dict[str
         "model": selected_model.id,
         "baseUrl": proxy_url,
         "envKey": settings.codex.env_key,
+        "migratedProviders": migrated_providers,
     }
 
 
@@ -416,3 +419,19 @@ def _launch_cli_in_terminal(settings: Settings, cli_path: Path, workspace: Path)
 def _validate_env_name(name: str) -> None:
     if not _ENV_NAME_PATTERN.fullmatch(name):
         raise ValueError(f"Invalid Codex env var name: {name}")
+
+
+def _migrate_deprecated_wire_api(providers: Any) -> list[str]:
+    migrated: list[str] = []
+    if not hasattr(providers, "items"):
+        return migrated
+
+    for provider_id, provider in providers.items():
+        if not hasattr(provider, "get"):
+            continue
+        wire_api = provider.get("wire_api")
+        if isinstance(wire_api, str) and wire_api.strip().lower() == "chat":
+            provider["wire_api"] = "responses"
+            migrated.append(str(provider_id))
+
+    return migrated

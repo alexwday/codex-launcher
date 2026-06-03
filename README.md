@@ -119,3 +119,4 @@ python -m src.launch_codex --profile work --workspace /Users/you/Projects/some-r
 - The proxy API key is injected into the launched CLI process environment and is not written to `~/.codex/config.toml`.
 - `CODEX_WORKSPACE_PATH` is only the default. The dashboard launch workspace field can override it for each launch.
 - The dashboard can install/update Codex CLI from GitHub Releases. The launcher also checks `~/.local/bin/codex` even if `~/.local/bin` is not on `PATH`.
+- If Codex reports `wire_api = chat is no longer supported`, click **Configure** or **Launch CLI** again. The launcher migrates deprecated provider entries in `~/.codex/config.toml` from `chat` to `responses`.
