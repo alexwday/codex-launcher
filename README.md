@@ -109,6 +109,28 @@ To launch from a specific workspace without changing `.env`:
 python -m src.launch_codex --profile work --workspace /Users/you/Projects/some-repo --launch
 ```
 
+## Debug Responses Upstream
+
+If the proxy reports an upstream error such as `unknown endpoint /responses`, run the diagnostic script. It loads the same `.env` profile, enables `rbc_security` certs when available, acquires OAuth using the configured client credentials, uses the selected work model, and probes likely Responses API URL variants from `WORK_UPSTREAM_BASE_URL`.
+
+```bash
+python scripts/debug_responses_endpoint.py --profile work
+```
+
+For a safe preview without sending requests:
+
+```bash
+python scripts/debug_responses_endpoint.py --profile work --dry-run
+```
+
+The script tests paths like:
+
+- configured base + `/responses`
+- configured base with trailing `/v1` removed + `/responses`
+- configured base with trailing `/v1` removed + `/v1/responses`
+- configured base with trailing `/v1` removed + `/openai/v1/responses`
+- configured base + `/chat/completions` as a sanity check, unless `--skip-chat-sanity` is set
+
 ## Notes
 
 - Set `CODEX_PROXY_PROFILE=local` for local development, `work` for enterprise settings.
