@@ -1,0 +1,11 @@
+{
+  "models": [
+    {
+      "id": "gpt-4o-2024-11-20-canadaeast",
+      "display_name": "GPT-4o Canada East",
+      "upstream_model": "gpt-4o-2024-11-20-canadaeast",
+      "max_output_tokens": 32768,
+      "description": "Default enterprise Responses API model."
+    }
+  ]
+}

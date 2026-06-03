@@ -1,80 +1,46 @@
-"""Helper script to print/apply Codex runtime wiring for the local proxy."""
+"""Configure and optionally launch Codex Desktop through the local proxy."""
 
 from __future__ import annotations
 
 import argparse
-import os
-import subprocess
-from pathlib import Path
+import json
 
+from .codex_manager import configure_codex, get_codex_status, launch_codex
 from .config import load_settings
-
-
-def _build_cmd(
-    provider: str,
-    model: str,
-    base_url: str,
-    workspace: str,
-    env_key: str,
-) -> list[str]:
-    return [
-        "codex",
-        "-c",
-        f'model_provider="{provider}"',
-        "-c",
-        f'model="{model}"',
-        "-c",
-        f'model_providers.{provider}.name="Codex Launcher Proxy"',
-        "-c",
-        f'model_providers.{provider}.base_url="{base_url.rstrip('/')}/v1"',
-        "-c",
-        f'model_providers.{provider}.env_key="{env_key}"',
-        "-c",
-        f'model_providers.{provider}.wire_api="responses"',
-        "-C",
-        workspace,
-    ]
+from .models import SelectedModelStore, load_model_catalog
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Configure and optionally launch Codex via local proxy")
+    parser = argparse.ArgumentParser(description="Configure and optionally launch Codex Desktop via local proxy")
     parser.add_argument("--profile", default=None, help="Config profile override (local/work)")
-    parser.add_argument("--workspace", default=str(Path.cwd()), help="Workspace path for Codex")
-    parser.add_argument("--proxy-url", default=None, help="Proxy base URL override, e.g. http://127.0.0.1:8765")
-    parser.add_argument("--provider", default=None, help="Codex model provider name override")
-    parser.add_argument("--model", default=None, help="Codex model override")
-    parser.add_argument("--launch", action="store_true", help="Launch Codex immediately")
+    parser.add_argument("--model", default=None, help="Codex-facing model id to select from models.json")
+    parser.add_argument("--launch", action="store_true", help="Launch Codex Desktop after configuring")
+    parser.add_argument("--status", action="store_true", help="Print Codex install/status information")
     args = parser.parse_args()
 
     settings = load_settings(args.profile)
+    models = load_model_catalog(
+        settings.model_config_path,
+        default_model_id=settings.codex.model,
+        default_upstream_model=settings.model_mapping.get(settings.codex.model, settings.codex.model),
+        default_max_output_tokens=settings.token_defaults.responses_max_output_tokens,
+    )
+    store = SelectedModelStore(models, args.model or settings.codex.model)
+    selected = store.selected()
 
-    provider = args.provider or settings.codex.model_provider
-    model = args.model or settings.codex.model
-    proxy_url = args.proxy_url or f"http://{settings.proxy.host}:{settings.proxy.port}"
+    if args.status:
+        print(json.dumps(get_codex_status(settings, run_doctor=True).to_dict(), indent=2))
+        return
 
-    print("Use this model provider block in ~/.codex/config.toml:")
+    result = configure_codex(settings, selected)
+    print(json.dumps(result, indent=2))
     print()
-    print(f"[model_providers.{provider}]")
-    print('name = "Codex Launcher Proxy"')
-    print(f'base_url = "{proxy_url.rstrip("/")}/v1"')
-    print(f'env_key = "{settings.codex.env_key}"')
-    print('wire_api = "responses"')
-    print()
-    print("Then set:")
-    print(f'model_provider = "{provider}"')
-    print(f'model = "{model}"')
-    print()
-    print(f"Export before running Codex: export {settings.codex.env_key}='{settings.proxy.static_api_key}'")
-
-    cmd = _build_cmd(provider, model, proxy_url, args.workspace, settings.codex.env_key)
-    print()
-    print("One-shot launch command:")
-    print(" ".join(cmd))
+    print(f"Configured {settings.codex.model_provider} for {selected.id} -> {selected.upstream_model}")
+    print(f"Codex will read its local proxy key from {settings.codex.env_key}.")
 
     if args.launch:
-        env = os.environ.copy()
-        env[settings.codex.env_key] = settings.proxy.static_api_key
-        subprocess.run(cmd, check=True, env=env)
+        launch_result = launch_codex(settings, selected)
+        print(json.dumps(launch_result, indent=2))
 
 
 if __name__ == "__main__":

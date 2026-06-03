@@ -53,6 +53,9 @@ class CodexConfig:
     model_provider: str
     model: str
     env_key: str
+    config_path: Path
+    app_path: Path
+    desktop_repo_url: str
 
 
 @dataclass(frozen=True)
@@ -64,6 +67,7 @@ class Settings:
     token_defaults: TokenDefaults
     codex: CodexConfig
     model_mapping: dict[str, str]
+    model_config_path: Path
     log_level: str
 
 
@@ -133,6 +137,13 @@ def _env_for_profile(profile: str, key: str, default: Optional[str] = None) -> O
     if prefixed is not None and prefixed.strip() != "":
         return prefixed
     return os.getenv(key, default)
+
+
+def _expand_path(raw_value: str, *, base_dir: Path = _PROJECT_ROOT) -> Path:
+    path = Path(raw_value).expanduser()
+    if not path.is_absolute():
+        path = base_dir / path
+    return path
 
 
 def load_settings(profile_override: Optional[str] = None) -> Settings:
@@ -223,6 +234,26 @@ def load_settings(profile_override: Optional[str] = None) -> Settings:
         _env_for_profile(profile, "CODEX_ENV_KEY", "CODEX_PROXY_API_KEY")
         or "CODEX_PROXY_API_KEY"
     ).strip()
+    codex_config_path = _expand_path(
+        _env_for_profile(profile, "CODEX_CONFIG_PATH", "~/.codex/config.toml")
+        or "~/.codex/config.toml"
+    )
+    codex_app_path = _expand_path(
+        _env_for_profile(profile, "CODEX_APP_PATH", "/Applications/Codex.app")
+        or "/Applications/Codex.app"
+    )
+    codex_desktop_repo_url = (
+        _env_for_profile(
+            profile,
+            "CODEX_DESKTOP_REPO_URL",
+            "https://github.com/openai/codex",
+        )
+        or "https://github.com/openai/codex"
+    ).strip()
+    model_config_path = _expand_path(
+        _env_for_profile(profile, "MODEL_CONFIG_PATH", "models.json")
+        or "models.json"
+    )
 
     log_level = (os.getenv("LOG_LEVEL", "INFO") or "INFO").strip().upper()
 
@@ -247,8 +278,12 @@ def load_settings(profile_override: Optional[str] = None) -> Settings:
             model_provider=codex_model_provider,
             model=codex_model,
             env_key=codex_env_key,
+            config_path=codex_config_path,
+            app_path=codex_app_path,
+            desktop_repo_url=codex_desktop_repo_url,
         ),
         model_mapping=model_mapping,
+        model_config_path=model_config_path,
         log_level=log_level,
     )
 

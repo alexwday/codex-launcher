@@ -9,18 +9,25 @@ Route Codex traffic through a local proxy that:
 - initializes enterprise SSL certs via `rbc_security`,
 - acquires and refreshes OAuth2 access tokens for upstream calls,
 - maps Codex-facing model names to internal model names,
-- injects token defaults (`32768`) when callers omit them.
+- forces dashboard-selected upstream models,
+- forces Responses API `store=false`,
+- injects token defaults (`32768`) when callers omit them,
+- monitors calls from a local dashboard,
+- configures and launches Codex Desktop with the proxy provider.
 
-## Phase 1 (current)
+## Current scope
 
-This repo currently contains the project scaffold and baseline modules:
+This repo contains:
 - profile-based config (`local` / `work`)
 - SSL setup helper
 - OAuth token manager with refresh scheduling
 - model alias mapper
 - request normalizers for `/v1/responses` and `/v1/chat/completions`
-- FastAPI proxy app skeleton with upstream forwarding
-- Codex launcher helper script
+- direct `/v1/responses` forwarding to a custom Responses-capable base URL
+- optional `/v1/chat/completions` forwarding
+- in-memory call logging
+- dashboard HTML served at `/`
+- Codex Desktop config and launch helpers
 
 ## Quick Start
 
@@ -38,13 +45,23 @@ pip install -r requirements.txt
 cp .env.example .env
 ```
 
-3. Start proxy:
+3. Edit `models.json` with Codex-facing model names and upstream model names.
+
+4. Start proxy/dashboard:
 
 ```bash
 python -m src.main
 ```
 
-4. Print Codex provider wiring instructions:
+5. Open the dashboard:
+
+```text
+http://127.0.0.1:8765
+```
+
+6. Select a model, configure Codex, and launch Codex Desktop from the dashboard.
+
+You can still print Codex provider wiring instructions:
 
 ```bash
 python -m src.launch_codex --profile local
@@ -54,3 +71,5 @@ python -m src.launch_codex --profile local
 
 - Set `CODEX_PROXY_PROFILE=local` for local development, `work` for enterprise settings.
 - Keep `PROXY_STATIC_API_KEY` local-only; upstream auth should use OAuth2 tokens.
+- Secrets stay in `.env`; `~/.codex/config.toml` only stores the proxy provider name, base URL, wire API, and environment variable name.
+- The proxy sets `store=false` on `/v1/responses` before forwarding upstream.

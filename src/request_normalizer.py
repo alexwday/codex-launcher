@@ -23,11 +23,14 @@ def normalize_chat_completions_request(
     *,
     mapper: ModelMapper,
     default_max_tokens: int,
+    forced_model: str | None = None,
 ) -> dict[str, Any]:
     normalized = _clone_payload(payload)
 
     model = normalized.get("model")
-    if isinstance(model, str) and model.strip():
+    if forced_model:
+        normalized["model"] = forced_model
+    elif isinstance(model, str) and model.strip():
         normalized["model"] = mapper.map(model)
 
     if "max_tokens" not in normalized and "max_completion_tokens" not in normalized:
@@ -41,14 +44,20 @@ def normalize_responses_request(
     *,
     mapper: ModelMapper,
     default_max_output_tokens: int,
+    forced_model: str | None = None,
+    force_store_false: bool = False,
 ) -> dict[str, Any]:
     normalized = _clone_payload(payload)
 
     model = normalized.get("model")
-    if isinstance(model, str) and model.strip():
+    if forced_model:
+        normalized["model"] = forced_model
+    elif isinstance(model, str) and model.strip():
         normalized["model"] = mapper.map(model)
 
     if "max_output_tokens" not in normalized and "max_tokens" not in normalized:
         normalized["max_output_tokens"] = default_max_output_tokens
+    if force_store_false:
+        normalized["store"] = False
 
     return normalized

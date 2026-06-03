@@ -36,6 +36,16 @@ class RequestNormalizerTests(unittest.TestCase):
         )
         self.assertEqual(normalized["max_tokens"], 500)
 
+    def test_chat_forces_model_when_selected(self) -> None:
+        payload = {"model": "gpt-5.3-codex", "messages": [{"role": "user", "content": "hi"}]}
+        normalized = normalize_chat_completions_request(
+            payload,
+            mapper=self.mapper,
+            default_max_tokens=32768,
+            forced_model="selected-upstream",
+        )
+        self.assertEqual(normalized["model"], "selected-upstream")
+
     def test_responses_injects_default_max_output_tokens_when_missing(self) -> None:
         payload = {"model": "gpt-5.3-codex", "input": "hi"}
         normalized = normalize_responses_request(
@@ -54,6 +64,18 @@ class RequestNormalizerTests(unittest.TestCase):
             default_max_output_tokens=32768,
         )
         self.assertEqual(normalized["max_output_tokens"], 1000)
+
+    def test_responses_forces_model_and_store_false(self) -> None:
+        payload = {"model": "gpt-5.3-codex", "input": "hi", "store": True}
+        normalized = normalize_responses_request(
+            payload,
+            mapper=self.mapper,
+            default_max_output_tokens=32768,
+            forced_model="selected-upstream",
+            force_store_false=True,
+        )
+        self.assertEqual(normalized["model"], "selected-upstream")
+        self.assertIs(normalized["store"], False)
 
 
 if __name__ == "__main__":
