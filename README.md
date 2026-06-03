@@ -69,7 +69,7 @@ Make sure `CODEX_CLI_PATH` in `.env` points to the installed binary. If the scri
 CODEX_CLI_PATH=~/.local/bin/codex
 ```
 
-6. Optional: set the folder where CLI sessions should start:
+6. Optional: set the default folder where CLI sessions should start:
 
 ```text
 CODEX_WORKSPACE_PATH=/Users/you/Projects/some-repo
@@ -87,7 +87,7 @@ python -m src.main
 http://127.0.0.1:8765
 ```
 
-9. Select a model, configure Codex, and launch Codex CLI from the dashboard.
+9. Select a model, enter or paste the launch workspace path, configure Codex, and launch Codex CLI from the dashboard.
 
 You can still print Codex provider wiring instructions:
 
@@ -101,6 +101,12 @@ You can also configure and launch from the terminal:
 python -m src.launch_codex --profile work --launch
 ```
 
+To launch from a specific workspace without changing `.env`:
+
+```bash
+python -m src.launch_codex --profile work --workspace /Users/you/Projects/some-repo --launch
+```
+
 ## Notes
 
 - Set `CODEX_PROXY_PROFILE=local` for local development, `work` for enterprise settings.
@@ -109,3 +115,4 @@ python -m src.launch_codex --profile work --launch
 - The proxy sets `store=false` on `/v1/responses` before forwarding upstream.
 - The dashboard launch button opens a macOS Terminal window because Codex CLI is an interactive TUI.
 - The proxy API key is injected into the launched CLI process environment and is not written to `~/.codex/config.toml`.
+- `CODEX_WORKSPACE_PATH` is only the default. The dashboard launch workspace field can override it for each launch.

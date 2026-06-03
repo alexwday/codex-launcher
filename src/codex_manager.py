@@ -23,6 +23,10 @@ from .models import ModelConfig
 _ENV_NAME_PATTERN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 
+class WorkspacePathError(ValueError):
+    """Raised when a launch workspace path is invalid."""
+
+
 @dataclass(frozen=True)
 class CodexStatus:
     installed: bool
@@ -125,7 +129,12 @@ def configure_codex(settings: Settings, selected_model: ModelConfig) -> dict[str
     }
 
 
-def launch_codex(settings: Settings, selected_model: ModelConfig) -> dict[str, Any]:
+def launch_codex(
+    settings: Settings,
+    selected_model: ModelConfig,
+    *,
+    workspace_path: Optional[str] = None,
+) -> dict[str, Any]:
     status = get_codex_status(settings, run_doctor=True)
     if not status.installed or not status.resolved_cli_path:
         return {
@@ -135,8 +144,14 @@ def launch_codex(settings: Settings, selected_model: ModelConfig) -> dict[str, A
             "message": status.message,
         }
 
+    _validate_env_name(settings.codex.env_key)
+    resolved_workspace = _workspace_path(settings, workspace_path)
     config_result = configure_codex(settings, selected_model)
-    launch_result = _launch_cli(settings, Path(status.resolved_cli_path))
+    launch_result = _launch_cli(
+        settings,
+        Path(status.resolved_cli_path),
+        workspace=resolved_workspace,
+    )
     return {
         "success": True,
         **launch_result,
@@ -160,10 +175,20 @@ def _resolve_cli_path(settings: Settings) -> Optional[Path]:
     return None
 
 
-def _workspace_path(settings: Settings) -> Path:
+def _workspace_path(settings: Settings, workspace_override: Optional[str] = None) -> Path:
+    if workspace_override is not None and workspace_override.strip():
+        workspace = Path(workspace_override.strip()).expanduser()
+        if not workspace.is_absolute():
+            raise WorkspacePathError("Workspace path must be absolute or start with ~")
+        if not workspace.exists():
+            raise WorkspacePathError(f"Workspace path does not exist: {workspace}")
+        if not workspace.is_dir():
+            raise WorkspacePathError(f"Workspace path is not a directory: {workspace}")
+        return workspace.resolve()
+
     workspace = settings.codex.workspace_path.expanduser()
     if workspace.exists() and workspace.is_dir():
-        return workspace
+        return workspace.resolve()
     return Path.home()
 
 
@@ -200,20 +225,25 @@ def _run_doctor(cli_path: Path) -> tuple[bool, dict[str, Any]]:
     return result.returncode == 0, payload
 
 
-def _launch_cli(settings: Settings, cli_path: Path) -> dict[str, Any]:
+def _launch_cli(
+    settings: Settings,
+    cli_path: Path,
+    *,
+    workspace: Optional[Path] = None,
+) -> dict[str, Any]:
     _validate_env_name(settings.codex.env_key)
-    workspace = _workspace_path(settings)
+    resolved_workspace = workspace or _workspace_path(settings)
 
     if platform.system() == "Darwin":
-        return _launch_cli_in_terminal(settings, cli_path, workspace)
+        return _launch_cli_in_terminal(settings, cli_path, resolved_workspace)
 
     env = os.environ.copy()
     env[settings.codex.env_key] = settings.proxy.static_api_key
-    process = subprocess.Popen([str(cli_path)], cwd=str(workspace), env=env)
+    process = subprocess.Popen([str(cli_path)], cwd=str(resolved_workspace), env=env)
     return {
         "pid": process.pid,
         "launchMode": "subprocess",
-        "workspacePath": str(workspace),
+        "workspacePath": str(resolved_workspace),
     }
 
 

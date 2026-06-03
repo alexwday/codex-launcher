@@ -1,8 +1,9 @@
-"""FastAPI proxy app for Codex Desktop traffic."""
+"""FastAPI proxy app for Codex CLI traffic."""
 
 from __future__ import annotations
 
 import hmac
+import json
 import logging
 import time
 from dataclasses import dataclass
@@ -14,7 +15,12 @@ from fastapi import FastAPI, HTTPException, Query, Request, status
 from fastapi.responses import HTMLResponse, JSONResponse, Response, StreamingResponse
 
 from .call_log import CallLog
-from .codex_manager import configure_codex, get_codex_status, launch_codex
+from .codex_manager import (
+    WorkspacePathError,
+    configure_codex,
+    get_codex_status,
+    launch_codex,
+)
 from .config import Settings, get_settings
 from .model_mapping import ModelMapper
 from .models import SelectedModelStore, load_model_catalog
@@ -171,9 +177,21 @@ def create_app(settings: Optional[Settings] = None) -> FastAPI:
         return configure_codex(context.settings, context.models.selected())
 
     @app.post("/api/codex/launch")
-    def api_launch_codex() -> dict[str, Any]:
+    async def api_launch_codex(request: Request) -> dict[str, Any]:
         context: RuntimeContext = app.state.context
-        return launch_codex(context.settings, context.models.selected())
+        payload = await _read_optional_json_payload(request)
+        workspace_path = str(payload.get("workspacePath") or "").strip() or None
+        try:
+            return launch_codex(
+                context.settings,
+                context.models.selected(),
+                workspace_path=workspace_path,
+            )
+        except WorkspacePathError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=str(exc),
+            ) from exc
 
     @app.post("/v1/chat/completions")
     async def chat_completions(request: Request) -> Response:
@@ -258,6 +276,28 @@ def _require_proxy_auth(request: Request, context: RuntimeContext) -> None:
 async def _read_json_payload(request: Request) -> dict[str, Any]:
     try:
         payload = await request.json()
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid JSON: {exc}",
+        ) from exc
+
+    if not isinstance(payload, dict):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Request body must be a JSON object",
+        )
+
+    return payload
+
+
+async def _read_optional_json_payload(request: Request) -> dict[str, Any]:
+    body = await request.body()
+    if not body.strip():
+        return {}
+
+    try:
+        payload = json.loads(body.decode("utf-8"))
     except Exception as exc:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

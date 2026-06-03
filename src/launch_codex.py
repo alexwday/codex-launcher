@@ -14,6 +14,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Configure and optionally launch Codex CLI via local proxy")
     parser.add_argument("--profile", default=None, help="Config profile override (local/work)")
     parser.add_argument("--model", default=None, help="Codex-facing model id to select from models.json")
+    parser.add_argument("--workspace", default=None, help="Workspace directory for the launched Codex CLI")
     parser.add_argument("--launch", action="store_true", help="Open Codex CLI in a new terminal after configuring")
     parser.add_argument("--status", action="store_true", help="Print Codex CLI install/status information")
     args = parser.parse_args()
@@ -40,7 +41,7 @@ def main() -> None:
     print(f"Codex will read its local proxy key from {settings.codex.env_key}.")
 
     if args.launch:
-        launch_result = launch_codex(settings, selected)
+        launch_result = launch_codex(settings, selected, workspace_path=args.workspace)
         print(json.dumps(launch_result, indent=2))
 
 

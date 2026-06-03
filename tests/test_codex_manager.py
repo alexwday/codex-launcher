@@ -129,6 +129,44 @@ class CodexManagerTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     launch_codex(settings, model)
 
+    def test_launch_uses_workspace_override(self) -> None:
+        with tempfile.TemporaryDirectory() as raw_temp_dir:
+            temp_dir = Path(raw_temp_dir)
+            workspace = temp_dir / "workspace"
+            workspace.mkdir()
+            settings = make_settings(temp_dir)
+            cli_path = Path(settings.codex.cli_path)
+            cli_path.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+            cli_path.chmod(0o755)
+            model = ModelConfig(
+                id="codex-facing",
+                display_name="Codex Facing",
+                upstream_model="corp-model",
+                max_output_tokens=32768,
+            )
+
+            def fake_terminal_launch(settings_arg, cli_path_arg, workspace_arg):
+                return {
+                    "pid": 123,
+                    "launchMode": "terminal",
+                    "workspacePath": str(workspace_arg),
+                }
+
+            with patch("src.codex_manager._run_doctor", return_value=(True, {})):
+                with patch("src.codex_manager.platform.system", return_value="Darwin"):
+                    with patch(
+                        "src.codex_manager._launch_cli_in_terminal",
+                        side_effect=fake_terminal_launch,
+                    ):
+                        result = launch_codex(
+                            settings,
+                            model,
+                            workspace_path=str(workspace),
+                        )
+
+        self.assertTrue(result["success"])
+        self.assertEqual(result["workspacePath"], str(workspace.resolve()))
+
 
 if __name__ == "__main__":
     unittest.main()

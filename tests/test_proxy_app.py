@@ -141,6 +141,27 @@ class ProxyAppTests(unittest.TestCase):
         self.assertEqual(captured["payload"]["model"], "corp-model-b")
         self.assertEqual(captured["payload"]["max_output_tokens"], 16000)
 
+    def test_codex_launch_passes_workspace_path(self) -> None:
+        with tempfile.TemporaryDirectory() as raw_temp_dir:
+            temp_dir = Path(raw_temp_dir)
+            app = create_app(make_settings(temp_dir))
+            client = TestClient(app)
+            workspace = temp_dir / "repo"
+            workspace.mkdir()
+            with patch("src.proxy_app.launch_codex") as mocked_launch:
+                mocked_launch.return_value = {
+                    "success": True,
+                    "workspacePath": str(workspace),
+                }
+                response = client.post(
+                    "/api/codex/launch",
+                    json={"workspacePath": str(workspace)},
+                )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["workspacePath"], str(workspace))
+        self.assertEqual(mocked_launch.call_args.kwargs["workspace_path"], str(workspace))
+
 
 if __name__ == "__main__":
     unittest.main()
