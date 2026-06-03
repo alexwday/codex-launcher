@@ -51,7 +51,9 @@ cp .env.example .env
 
 4. Edit `models.json` under `profiles.work.models` with Codex-facing model names and upstream model names. The dashboard selects `WORK_CODEX_MODEL` on startup; if that id is missing from `models.json`, the launcher adds a fallback from `.env` instead of silently selecting a local model.
 
-5. Install Codex CLI. If only GitHub is reachable, prefer the release script:
+5. Install Codex CLI. The dashboard can do this for you: click **Install/Update CLI**, or click **Launch CLI** and the launcher will install from GitHub first when the CLI is missing.
+
+If you want to run the same install manually, use the release script:
 
 ```bash
 scripts/install_codex_cli_from_github_release.sh
@@ -87,7 +89,7 @@ python -m src.main
 http://127.0.0.1:8765
 ```
 
-9. Select a model, enter or paste the launch workspace path, configure Codex, and launch Codex CLI from the dashboard.
+9. Select a model, enter or paste the launch workspace path, configure Codex, and launch Codex CLI from the dashboard. If Codex CLI is missing, launch first attempts a GitHub release install into `~/.local/bin/codex`.
 
 You can still print Codex provider wiring instructions:
 
@@ -116,3 +118,4 @@ python -m src.launch_codex --profile work --workspace /Users/you/Projects/some-r
 - The dashboard launch button opens a macOS Terminal window because Codex CLI is an interactive TUI.
 - The proxy API key is injected into the launched CLI process environment and is not written to `~/.codex/config.toml`.
 - `CODEX_WORKSPACE_PATH` is only the default. The dashboard launch workspace field can override it for each launch.
+- The dashboard can install/update Codex CLI from GitHub Releases. The launcher also checks `~/.local/bin/codex` even if `~/.local/bin` is not on `PATH`.

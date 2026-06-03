@@ -5,7 +5,12 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from src.codex_manager import configure_codex, get_codex_status, launch_codex
+from src.codex_manager import (
+    CodexInstallError,
+    configure_codex,
+    get_codex_status,
+    launch_codex,
+)
 from src.config import CodexConfig, ProxyConfig, Settings, TokenDefaults, UpstreamConfig
 from src.models import ModelConfig
 
@@ -166,6 +171,63 @@ class CodexManagerTests(unittest.TestCase):
 
         self.assertTrue(result["success"])
         self.assertEqual(result["workspacePath"], str(workspace.resolve()))
+
+    def test_launch_installs_cli_when_missing(self) -> None:
+        with tempfile.TemporaryDirectory() as raw_temp_dir:
+            temp_dir = Path(raw_temp_dir)
+            settings = make_settings(temp_dir)
+            cli_path = Path(settings.codex.cli_path)
+            model = ModelConfig(
+                id="codex-facing",
+                display_name="Codex Facing",
+                upstream_model="corp-model",
+                max_output_tokens=32768,
+            )
+
+            def fake_install(settings_arg):
+                cli_path.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+                cli_path.chmod(0o755)
+                return {"success": True, "resolvedCliPath": str(cli_path)}
+
+            def fake_terminal_launch(settings_arg, cli_path_arg, workspace_arg):
+                return {
+                    "pid": 123,
+                    "launchMode": "terminal",
+                    "workspacePath": str(workspace_arg),
+                }
+
+            with patch("src.codex_manager.install_or_update_codex_cli", side_effect=fake_install):
+                with patch("src.codex_manager._run_doctor", return_value=(True, {})):
+                    with patch("src.codex_manager.platform.system", return_value="Darwin"):
+                        with patch(
+                            "src.codex_manager._launch_cli_in_terminal",
+                            side_effect=fake_terminal_launch,
+                        ):
+                            result = launch_codex(settings, model)
+
+        self.assertTrue(result["success"])
+        self.assertEqual(result["install"]["resolvedCliPath"], str(cli_path))
+
+    def test_launch_reports_install_failure(self) -> None:
+        with tempfile.TemporaryDirectory() as raw_temp_dir:
+            temp_dir = Path(raw_temp_dir)
+            settings = make_settings(temp_dir)
+            model = ModelConfig(
+                id="codex-facing",
+                display_name="Codex Facing",
+                upstream_model="corp-model",
+                max_output_tokens=32768,
+            )
+
+            with patch(
+                "src.codex_manager.install_or_update_codex_cli",
+                side_effect=CodexInstallError("download failed", {"stderr": "blocked"}),
+            ):
+                result = launch_codex(settings, model)
+
+        self.assertFalse(result["success"])
+        self.assertEqual(result["reason"], "install_failed")
+        self.assertEqual(result["install"]["stderr"], "blocked")
 
 
 if __name__ == "__main__":

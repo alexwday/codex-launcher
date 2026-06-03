@@ -155,12 +155,34 @@ class ProxyAppTests(unittest.TestCase):
                 }
                 response = client.post(
                     "/api/codex/launch",
-                    json={"workspacePath": str(workspace)},
+                    json={"workspacePath": str(workspace), "installIfMissing": True},
                 )
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["workspacePath"], str(workspace))
         self.assertEqual(mocked_launch.call_args.kwargs["workspace_path"], str(workspace))
+        self.assertIs(mocked_launch.call_args.kwargs["install_if_missing"], True)
+
+    def test_codex_install_endpoint_runs_installer(self) -> None:
+        with tempfile.TemporaryDirectory() as raw_temp_dir:
+            temp_dir = Path(raw_temp_dir)
+            app = create_app(make_settings(temp_dir))
+            client = TestClient(app)
+            with patch("src.proxy_app.install_or_update_codex_cli") as mocked_install:
+                mocked_install.return_value = {
+                    "success": True,
+                    "resolvedCliPath": str(temp_dir / "codex"),
+                }
+                with patch("src.proxy_app.get_codex_status") as mocked_status:
+                    mocked_status.return_value.to_dict.return_value = {
+                        "installed": True,
+                        "resolved_cli_path": str(temp_dir / "codex"),
+                    }
+                    response = client.post("/api/codex/install")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json()["success"])
+        self.assertEqual(response.json()["install"]["resolvedCliPath"], str(temp_dir / "codex"))
 
 
 if __name__ == "__main__":

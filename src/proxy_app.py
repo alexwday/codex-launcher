@@ -16,9 +16,11 @@ from fastapi.responses import HTMLResponse, JSONResponse, Response, StreamingRes
 
 from .call_log import CallLog
 from .codex_manager import (
+    CodexInstallError,
     WorkspacePathError,
     configure_codex,
     get_codex_status,
+    install_or_update_codex_cli,
     launch_codex,
 )
 from .config import Settings, get_settings
@@ -176,16 +178,40 @@ def create_app(settings: Optional[Settings] = None) -> FastAPI:
         context: RuntimeContext = app.state.context
         return configure_codex(context.settings, context.models.selected())
 
+    @app.post("/api/codex/install")
+    def api_install_codex() -> dict[str, Any]:
+        context: RuntimeContext = app.state.context
+        try:
+            install_result = install_or_update_codex_cli(context.settings)
+        except CodexInstallError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail={
+                    "message": str(exc),
+                    "install": exc.details,
+                },
+            ) from exc
+
+        return {
+            "success": True,
+            "install": install_result,
+            "status": get_codex_status(context.settings, run_doctor=False).to_dict(),
+        }
+
     @app.post("/api/codex/launch")
     async def api_launch_codex(request: Request) -> dict[str, Any]:
         context: RuntimeContext = app.state.context
         payload = await _read_optional_json_payload(request)
         workspace_path = str(payload.get("workspacePath") or "").strip() or None
+        install_if_missing = payload.get("installIfMissing")
+        if install_if_missing is None:
+            install_if_missing = True
         try:
             return launch_codex(
                 context.settings,
                 context.models.selected(),
                 workspace_path=workspace_path,
+                install_if_missing=bool(install_if_missing),
             )
         except WorkspacePathError as exc:
             raise HTTPException(

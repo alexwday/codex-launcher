@@ -147,6 +147,7 @@
         <div id="codexMessage" class="muted"></div>
         <div class="actions">
           <button id="configureButton">Configure</button>
+          <button id="installButton">Install/Update CLI</button>
           <button class="primary" id="launchButton">Launch CLI</button>
         </div>
       </section>
@@ -180,7 +181,13 @@
         ...options,
       });
       const data = await response.json();
-      if (!response.ok) throw new Error(data.detail || data.message || response.statusText);
+      if (!response.ok) {
+        const detail = data.detail || data.message || response.statusText;
+        if (detail && typeof detail === "object") {
+          throw new Error(detail.message || JSON.stringify(detail));
+        }
+        throw new Error(detail);
+      }
       return data;
     }
 
@@ -273,11 +280,33 @@
       await fetchJson("/api/codex/configure", { method: "POST" });
       await loadCodexStatus();
     });
+    $("installButton").addEventListener("click", async () => {
+      $("codexMessage").textContent = "Installing or updating Codex CLI from GitHub...";
+      $("installButton").disabled = true;
+      $("launchButton").disabled = true;
+      try {
+        const result = await fetchJson("/api/codex/install", { method: "POST" });
+        await loadCodexStatus();
+        $("codexMessage").textContent = `Installed ${result.status.resolved_cli_path || "Codex CLI"}`;
+      } catch (error) {
+        $("codexMessage").textContent = error.message;
+        alert(error.message);
+      } finally {
+        $("installButton").disabled = false;
+        $("launchButton").disabled = false;
+      }
+    });
     $("launchButton").addEventListener("click", async () => {
+      $("codexMessage").textContent = "Checking Codex CLI and installing from GitHub if needed...";
+      $("launchButton").disabled = true;
+      $("installButton").disabled = true;
       try {
         const result = await fetchJson("/api/codex/launch", {
           method: "POST",
-          body: JSON.stringify({ workspacePath: $("workspaceInput").value }),
+          body: JSON.stringify({
+            workspacePath: $("workspaceInput").value,
+            installIfMissing: true,
+          }),
         });
         if (!result.success && result.message) alert(result.message);
         await loadCodexStatus();
@@ -285,7 +314,11 @@
           $("codexMessage").textContent = `Launched from ${result.workspacePath}`;
         }
       } catch (error) {
+        $("codexMessage").textContent = error.message;
         alert(error.message);
+      } finally {
+        $("launchButton").disabled = false;
+        $("installButton").disabled = false;
       }
     });
     $("clearCallsButton").addEventListener("click", async () => {

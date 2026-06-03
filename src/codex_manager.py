@@ -20,11 +20,21 @@ import tomlkit
 from .config import Settings
 from .models import ModelConfig
 
+_PROJECT_ROOT = Path(__file__).resolve().parents[1]
+_INSTALL_RELEASE_SCRIPT = _PROJECT_ROOT / "scripts" / "install_codex_cli_from_github_release.sh"
 _ENV_NAME_PATTERN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 
 class WorkspacePathError(ValueError):
     """Raised when a launch workspace path is invalid."""
+
+
+class CodexInstallError(RuntimeError):
+    """Raised when Codex CLI installation or update fails."""
+
+    def __init__(self, message: str, details: Optional[dict[str, Any]] = None) -> None:
+        super().__init__(message)
+        self.details = details or {}
 
 
 @dataclass(frozen=True)
@@ -134,16 +144,109 @@ def launch_codex(
     selected_model: ModelConfig,
     *,
     workspace_path: Optional[str] = None,
+    install_if_missing: bool = True,
 ) -> dict[str, Any]:
     status = get_codex_status(settings, run_doctor=True)
     if not status.installed or not status.resolved_cli_path:
+        install_result: Optional[dict[str, Any]] = None
+        if install_if_missing:
+            try:
+                install_result = install_or_update_codex_cli(settings)
+            except CodexInstallError as exc:
+                return {
+                    "success": False,
+                    "reason": "install_failed",
+                    "status": status.to_dict(),
+                    "message": str(exc),
+                    "install": exc.details,
+                }
+
+            status = get_codex_status(settings, run_doctor=True)
+            if status.installed and status.resolved_cli_path:
+                return _launch_installed_codex(
+                    settings,
+                    selected_model,
+                    status=status,
+                    workspace_path=workspace_path,
+                    install_result=install_result,
+                )
+
         return {
             "success": False,
             "reason": "not_installed",
             "status": status.to_dict(),
             "message": status.message,
+            "install": install_result,
         }
 
+    return _launch_installed_codex(
+        settings,
+        selected_model,
+        status=status,
+        workspace_path=workspace_path,
+    )
+
+
+def install_or_update_codex_cli(settings: Settings) -> dict[str, Any]:
+    """Install or update Codex CLI from the GitHub release installer script."""
+    if not _INSTALL_RELEASE_SCRIPT.exists():
+        raise CodexInstallError(
+            f"Install script is missing: {_INSTALL_RELEASE_SCRIPT}",
+            {"scriptPath": str(_INSTALL_RELEASE_SCRIPT)},
+        )
+
+    install_dir = _install_dir(settings)
+    install_dir.mkdir(parents=True, exist_ok=True)
+
+    env = os.environ.copy()
+    env["CODEX_CLI_INSTALL_DIR"] = str(install_dir)
+    env["CODEX_CLI_RELEASE_BASE_URL"] = settings.codex.cli_release_base_url
+
+    try:
+        result = subprocess.run(
+            [str(_INSTALL_RELEASE_SCRIPT)],
+            capture_output=True,
+            text=True,
+            timeout=180,
+            env=env,
+        )
+    except Exception as exc:
+        raise CodexInstallError(
+            f"Codex CLI install failed: {exc}",
+            {
+                "scriptPath": str(_INSTALL_RELEASE_SCRIPT),
+                "installDir": str(install_dir),
+                "error": str(exc),
+            },
+        ) from exc
+
+    details = {
+        "scriptPath": str(_INSTALL_RELEASE_SCRIPT),
+        "installDir": str(install_dir),
+        "stdout": result.stdout[-4000:],
+        "stderr": result.stderr[-4000:],
+        "returnCode": result.returncode,
+    }
+    if result.returncode != 0:
+        message = (result.stderr or result.stdout or "Codex CLI install failed").strip()
+        raise CodexInstallError(message[-1000:], details)
+
+    resolved_cli = _resolve_cli_path(settings)
+    return {
+        "success": True,
+        **details,
+        "resolvedCliPath": str(resolved_cli) if resolved_cli else None,
+    }
+
+
+def _launch_installed_codex(
+    settings: Settings,
+    selected_model: ModelConfig,
+    *,
+    status: CodexStatus,
+    workspace_path: Optional[str],
+    install_result: Optional[dict[str, Any]] = None,
+) -> dict[str, Any]:
     _validate_env_name(settings.codex.env_key)
     resolved_workspace = _workspace_path(settings, workspace_path)
     config_result = configure_codex(settings, selected_model)
@@ -157,6 +260,7 @@ def launch_codex(
         **launch_result,
         "config": config_result,
         "status": get_codex_status(settings, run_doctor=False).to_dict(),
+        "install": install_result,
     }
 
 
@@ -167,12 +271,28 @@ def _resolve_cli_path(settings: Settings) -> Optional[Path]:
 
     if "/" not in raw_path:
         resolved = shutil.which(raw_path)
-        return Path(resolved) if resolved else None
+        if resolved:
+            return Path(resolved)
+        installed = _install_dir(settings) / raw_path
+        if installed.exists() and os.access(installed, os.X_OK):
+            return installed
+        if raw_path == "codex":
+            fallback = Path.home() / ".local" / "bin" / "codex"
+            if fallback.exists() and os.access(fallback, os.X_OK):
+                return fallback
+        return None
 
     candidate = Path(raw_path).expanduser()
     if candidate.exists() and os.access(candidate, os.X_OK):
         return candidate
     return None
+
+
+def _install_dir(settings: Settings) -> Path:
+    raw_path = settings.codex.cli_path.strip()
+    if "/" in raw_path:
+        return Path(raw_path).expanduser().parent
+    return Path(os.getenv("CODEX_CLI_INSTALL_DIR", "~/.local/bin")).expanduser()
 
 
 def _workspace_path(settings: Settings, workspace_override: Optional[str] = None) -> Path:
